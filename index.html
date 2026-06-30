@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Milk Daily Account</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#3f6b4f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Milk Account">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f6f3ee; --card:#ffffff; --ink:#2b2620; --muted:#7a7269;
+    --accent:#3f6b4f; --accent-dark:#2c4d38; --line:#e3ddd2; --warn:#b5482f;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink);padding:20px;}
+  .wrap{max-width:760px;margin:0 auto;}
+  h1{font-size:1.5rem;margin:0 0 4px;color:var(--accent-dark);}
+  .sub{color:var(--muted);margin:0 0 20px;font-size:0.9rem;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px;box-shadow:0 1px 3px rgba(0,0,0,0.04);}
+  .card h2{margin:0 0 14px;font-size:1.05rem;color:var(--accent-dark);}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end;}
+  .field{display:flex;flex-direction:column;gap:4px;}
+  label{font-size:0.78rem;color:var(--muted);}
+  input,select{padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:0.92rem;background:#fdfcfa;color:var(--ink);}
+  input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px;}
+  button{padding:9px 16px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:0.9rem;cursor:pointer;font-weight:600;}
+  button:hover{background:var(--accent-dark);}
+  button.secondary{background:#fff;border:1px solid var(--accent);color:var(--accent);}
+  button.secondary:hover{background:#eef3ee;}
+  button.danger{background:#fff;border:1px solid var(--warn);color:var(--warn);}
+  button.danger:hover{background:#fbeae6;}
+  table{width:100%;border-collapse:collapse;font-size:0.88rem;margin-top:10px;}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;}
+  th{color:var(--muted);font-weight:600;font-size:0.78rem;text-transform:uppercase;}
+  tr:hover{background:#faf8f4;}
+  .num{text-align:right;font-variant-numeric:tabular-nums;}
+  .stats{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;}
+  .stat{flex:1;min-width:130px;background:#f1ede4;border-radius:8px;padding:12px 14px;}
+  .stat .label{font-size:0.75rem;color:var(--muted);}
+  .stat .val{font-size:1.3rem;font-weight:700;color:var(--accent-dark);}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:6px;}
+  .empty{color:var(--muted);font-style:italic;padding:14px 0;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:600;}
+  .badge.paid{background:#e3f0e6;color:var(--accent-dark);}
+  .badge.due{background:#fbe8e3;color:var(--warn);}
+  .adj-list{margin-top:8px;}
+  .adj-item{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line);font-size:0.86rem;}
+  .small{font-size:0.78rem;color:var(--muted);}
+  .actions button{padding:4px 8px;font-size:0.78rem;}
+  .fixedinfo{font-size:0.82rem;color:var(--muted);background:#f1ede4;padding:8px 12px;border-radius:6px;margin-bottom:10px;display:inline-block;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🥛 Milk Daily Account</h1>
+  <p class="sub">Fixed: 500ml/day = ₹25. Just mark the date.</p>
+
+  <div class="card">
+    <h2>Add Daily Entry</h2>
+    <div class="fixedinfo">Quantity: 500 ml (0.5 L) &nbsp;|&nbsp; Per day: ₹25</div>
+    <div class="row">
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="entryDate">
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select id="entryStatus">
+          <option value="due">Due</option>
+          <option value="paid">Paid</option>
+        </select>
+      </div>
+      <div class="field" style="flex:1;min-width:160px;">
+        <label>Notes</label>
+        <input type="text" id="entryNotes" placeholder="optional">
+      </div>
+      <button onclick="addEntry()">+ Add Entry</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <h2 style="margin:0;">Monthly Overview</h2>
+      <div class="row" style="align-items:center;">
+        <div class="field">
+          <label>Month</label>
+          <input type="month" id="filterMonth">
+        </div>
+        <button class="secondary" onclick="markAllPaid()">✓ Mark Month Paid</button>
+        <button class="secondary" onclick="exportExcel()">⬇ Export to Excel</button>
+      </div>
+    </div>
+
+    <div class="stats" id="statsBox"></div>
+
+    <div class="card" style="background:#f9f7f2;border-style:dashed;">
+      <h2 style="font-size:0.95rem;">Monthly Bill Adjustment</h2>
+      <div class="row">
+        <div class="field">
+          <label>Adjustment Type</label>
+          <select id="adjType">
+            <option value="discount">Discount (-)</option>
+            <option value="extra">Extra Charge (+)</option>
+            <option value="advance">Advance Paid (-)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Amount (₹)</label>
+          <input type="number" step="1" id="adjAmount" placeholder="e.g. 10">
+        </div>
+        <div class="field" style="flex:1;min-width:180px;">
+          <label>Reason</label>
+          <input type="text" id="adjReason" placeholder="e.g. missed delivery, advance">
+        </div>
+        <button onclick="addAdjustment()">+ Add Adjustment</button>
+      </div>
+      <div class="adj-list" id="adjList"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Daily Entries</h2>
+    <table id="entriesTable">
+      <thead>
+        <tr><th>Date</th><th class="num">Qty (L)</th><th class="num">Amount</th><th>Status</th><th>Notes</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="entriesBody"></tbody>
+    </table>
+    <div id="emptyMsg" class="empty" style="display:none;">No entries yet for this filter. Add one above.</div>
+  </div>
+</div>
+
+<script>
+const FIXED_QTY = 0.5;   // litres (500 ml)
+const PER_DAY = 25;      // rupees per day (500 ml = ₹25)
+const FIXED_RATE = PER_DAY / FIXED_QTY; // ₹/litre, derived, for reference only
+
+let entries = [];
+let adjustments = [];
+const STORAGE_KEY_ENTRIES = 'milk-entries-fixed';
+const STORAGE_KEY_ADJ = 'milk-adjustments-fixed';
+
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function currentMonthStr(){ return new Date().toISOString().slice(0,7); }
+
+function loadData(){
+  try{
+    const e = localStorage.getItem(STORAGE_KEY_ENTRIES);
+    entries = e ? JSON.parse(e) : [];
+  }catch(err){ entries = []; }
+  try{
+    const a = localStorage.getItem(STORAGE_KEY_ADJ);
+    adjustments = a ? JSON.parse(a) : [];
+  }catch(err){ adjustments = []; }
+  document.getElementById('entryDate').value = todayStr();
+  document.getElementById('filterMonth').value = currentMonthStr();
+  render();
+}
+
+function saveEntries(){
+  try{ localStorage.setItem(STORAGE_KEY_ENTRIES, JSON.stringify(entries)); }
+  catch(err){ console.error('save entries failed', err); }
+}
+function saveAdjustments(){
+  try{ localStorage.setItem(STORAGE_KEY_ADJ, JSON.stringify(adjustments)); }
+  catch(err){ console.error('save adjustments failed', err); }
+}
+
+function addEntry(){
+  const date = document.getElementById('entryDate').value;
+  const status = document.getElementById('entryStatus').value;
+  const notes = document.getElementById('entryNotes').value.trim();
+
+  if(!date){ alert('Please select a date.'); return; }
+  if(entries.some(e=>e.date===date)){
+    alert('Entry for this date already exists. Delete it first if you want to re-add.');
+    return;
+  }
+  entries.push({
+    id: Date.now().toString(),
+    date, qty: FIXED_QTY, rate: FIXED_RATE, amount: +(PER_DAY).toFixed(2), status, notes
+  });
+  saveEntries();
+  document.getElementById('entryNotes').value='';
+  render();
+}
+
+function deleteEntry(id){
+  entries = entries.filter(e=>e.id!==id);
+  saveEntries();
+  render();
+}
+
+function toggleStatus(id){
+  const e = entries.find(x=>x.id===id);
+  if(e){ e.status = e.status==='paid' ? 'due' : 'paid'; saveEntries(); render(); }
+}
+
+function markAllPaid(){
+  const month = document.getElementById('filterMonth').value;
+  entries.forEach(e=>{ if(!month || e.date.slice(0,7)===month) e.status='paid'; });
+  saveEntries();
+  render();
+}
+
+function addAdjustment(){
+  const type = document.getElementById('adjType').value;
+  const amount = parseFloat(document.getElementById('adjAmount').value);
+  const reason = document.getElementById('adjReason').value.trim();
+  const month = document.getElementById('filterMonth').value || currentMonthStr();
+  if(isNaN(amount) || amount<=0){ alert('Enter a valid amount.'); return; }
+  adjustments.push({ id: Date.now().toString(), month, type, amount, reason });
+  saveAdjustments();
+  document.getElementById('adjAmount').value='';
+  document.getElementById('adjReason').value='';
+  render();
+}
+
+function deleteAdjustment(id){
+  adjustments = adjustments.filter(a=>a.id!==id);
+  saveAdjustments();
+  render();
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function getFiltered(){
+  const month = document.getElementById('filterMonth').value;
+  return entries.filter(e=> !month || e.date.slice(0,7)===month)
+                .sort((a,b)=> a.date.localeCompare(b.date));
+}
+
+function getMonthAdjustments(){
+  const month = document.getElementById('filterMonth').value;
+  return adjustments.filter(a=> a.month===month);
+}
+
+function render(){
+  const filtered = getFiltered();
+  const body = document.getElementById('entriesBody');
+  const emptyMsg = document.getElementById('emptyMsg');
+  body.innerHTML = '';
+
+  if(filtered.length===0){
+    emptyMsg.style.display='block';
+  } else {
+    emptyMsg.style.display='none';
+    filtered.forEach(e=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${e.date}</td>
+        <td class="num">${e.qty}</td>
+        <td class="num">₹${e.amount.toFixed(2)}</td>
+        <td><span class="badge ${e.status==='paid'?'paid':'due'}" style="cursor:pointer" onclick="toggleStatus('${e.id}')">${e.status==='paid'?'Paid':'Due'}</span></td>
+        <td>${escapeHtml(e.notes||'')}</td>
+        <td class="actions"><button class="danger" onclick="deleteEntry('${e.id}')">Delete</button></td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+
+  const totalQty = filtered.reduce((s,e)=>s+e.qty,0);
+  const totalAmount = filtered.reduce((s,e)=>s+e.amount,0);
+  const paidAmount = filtered.filter(e=>e.status==='paid').reduce((s,e)=>s+e.amount,0);
+  const dueAmount = totalAmount - paidAmount;
+
+  const monthAdj = getMonthAdjustments();
+  let adjNet = 0;
+  monthAdj.forEach(a=>{ adjNet += (a.type==='extra' ? a.amount : -a.amount); });
+  const finalBill = totalAmount + adjNet;
+
+  document.getElementById('statsBox').innerHTML = `
+    <div class="stat"><div class="label">Days</div><div class="val">${filtered.length}</div></div>
+    <div class="stat"><div class="label">Total Quantity</div><div class="val">${totalQty.toFixed(1)} L</div></div>
+    <div class="stat"><div class="label">Total Amount</div><div class="val">₹${totalAmount.toFixed(2)}</div></div>
+    <div class="stat"><div class="label">Paid</div><div class="val">₹${paidAmount.toFixed(2)}</div></div>
+    <div class="stat"><div class="label">Due</div><div class="val">₹${dueAmount.toFixed(2)}</div></div>
+    <div class="stat" style="background:#e3f0e6;"><div class="label">Final Bill</div><div class="val">₹${finalBill.toFixed(2)}</div></div>
+  `;
+
+  const adjListEl = document.getElementById('adjList');
+  if(monthAdj.length===0){
+    adjListEl.innerHTML = '<div class="small">No adjustments added for this month.</div>';
+  } else {
+    adjListEl.innerHTML = monthAdj.map(a=>`
+      <div class="adj-item">
+        <span>${a.type==='extra'?'+':'−'} ₹${a.amount.toFixed(2)} — ${escapeHtml(a.reason||a.type)}</span>
+        <button class="danger" style="padding:2px 6px;font-size:0.72rem;" onclick="deleteAdjustment('${a.id}')">x</button>
+      </div>
+    `).join('');
+  }
+}
+
+function exportExcel(){
+  const filtered = getFiltered();
+  const monthAdj = getMonthAdjustments();
+  if(filtered.length===0 && monthAdj.length===0){
+    alert('No data to export for this filter.');
+    return;
+  }
+  const month = document.getElementById('filterMonth').value || 'all';
+
+  const entrySheetData = filtered.map(e=>({
+    Date: e.date, 'Quantity (L)': e.qty, 'Rate (₹/L)': e.rate,
+    'Amount (₹)': e.amount, Status: e.status==='paid'?'Paid':'Due', Notes: e.notes||''
+  }));
+
+  const totalQty = filtered.reduce((s,e)=>s+e.qty,0);
+  const totalAmount = filtered.reduce((s,e)=>s+e.amount,0);
+  const paidAmount = filtered.filter(e=>e.status==='paid').reduce((s,e)=>s+e.amount,0);
+  const dueAmount = totalAmount - paidAmount;
+  let adjNet = 0;
+  monthAdj.forEach(a=>{ adjNet += (a.type==='extra' ? a.amount : -a.amount); });
+  const finalBill = totalAmount + adjNet;
+
+  entrySheetData.push({});
+  entrySheetData.push({ Date:'', 'Quantity (L)': totalQty, 'Rate (₹/L)':'', 'Amount (₹)': totalAmount, Status:'TOTAL', Notes:'' });
+  entrySheetData.push({ Date:'', 'Quantity (L)':'', 'Rate (₹/L)':'', 'Amount (₹)': paidAmount, Status:'Paid', Notes:'' });
+  entrySheetData.push({ Date:'', 'Quantity (L)':'', 'Rate (₹/L)':'', 'Amount (₹)': dueAmount, Status:'Due', Notes:'' });
+  entrySheetData.push({ Date:'', 'Quantity (L)':'', 'Rate (₹/L)':'', 'Amount (₹)': adjNet, Status:'Adjustments (net)', Notes:'' });
+  entrySheetData.push({ Date:'', 'Quantity (L)':'', 'Rate (₹/L)':'', 'Amount (₹)': finalBill, Status:'FINAL BILL', Notes:'' });
+
+  const adjSheetData = monthAdj.map(a=>({
+    Type: a.type==='extra' ? 'Extra Charge' : (a.type==='advance'?'Advance Paid':'Discount'),
+    'Amount (₹)': a.amount, Reason: a.reason||''
+  }));
+
+  const wb = XLSX.utils.book_new();
+  const ws1 = XLSX.utils.json_to_sheet(entrySheetData);
+  XLSX.utils.book_append_sheet(wb, ws1, 'Daily Entries');
+  const ws2 = XLSX.utils.json_to_sheet(adjSheetData.length ? adjSheetData : [{Type:'',Amount:'',Reason:'No adjustments'}]);
+  XLSX.utils.book_append_sheet(wb, ws2, 'Adjustments');
+
+  XLSX.writeFile(wb, `milk-account-${month}.xlsx`);
+}
+
+document.getElementById('filterMonth').addEventListener('change', render);
+
+loadData();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(err => console.log('SW registration failed', err));
+  });
+}
+</script>
+</body>
+</html>
